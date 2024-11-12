@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+#except self
+!.gitignore
+
+# Except format file
+!format
