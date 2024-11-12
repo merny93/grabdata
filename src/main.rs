@@ -10,6 +10,7 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 mod format;
 mod getdata;
+mod putdata;
 
 #[derive(Debug)]
 struct Entry {
@@ -191,15 +192,18 @@ impl Dirfile {
                             assert_eq!(args[0].as_str(), "none");
                         }
                         format::Directive::Alias => {
-                            println!("alias not implemented");
+                            panic!("alias not implemented");
                         }
                         format::Directive::Protect => {
-                            println!("protect not implemented");
+                            println!("Warning: protect not implemented");
                         }
                         format::Directive::Reference => {
-                            println!("reference not implemented");
+                            println!("Warning: reference not implemented");
                         }
                         format::Directive::Include => {
+                            if args.len() !=0 {
+                                panic!("Does not support include with namespace or su/pre fix");
+                            }
                             fragments.insert(
                                 args[0].clone(),
                                 Dirfile::new(root_dir.join(args[0].clone())).unwrap(),
@@ -228,103 +232,7 @@ impl Dirfile {
             fragments,
         });
     }
-    fn getdata<T>(
-        &self,
-        name: &str,
-        first_frame: usize,
-        first_sample: usize,
-        num_frames: usize,
-        num_samples: usize,
-    ) -> Vec<T>
-    where
-        T: 'static + Copy + std::ops::Mul<Output = T> + Add<Output = T> + AsPrimitive<T>,
-        f64: AsPrimitive<T>,
-        u32: AsPrimitive<T>,
-        i32: AsPrimitive<T>,
-        u64: AsPrimitive<T>,
-    {
-        let entry = self.entries.get(name).unwrap();
 
-        //get the length of the file
-
-        match &entry.entry_type {
-            EntryType::Raw(raw) => self.getraw(
-                raw,
-                entry.dirfile_path.join(name),
-                entry.dirfile_options.endian,
-                first_frame,
-                first_sample,
-                num_frames,
-                num_samples,
-            ),
-            EntryType::Bit(bit) => {
-                self.getbit(bit, first_frame, first_sample, num_frames, num_samples)
-            }
-            EntryType::Lincom(lincom) => {
-                self.getlincom(lincom, first_frame, first_sample, num_frames, num_samples)
-            }
-            EntryType::Linterp(linterp) => {
-                self.getlinterp(linterp, first_frame, first_sample, num_frames, num_samples)
-            }
-        }
-    }
-    fn putdata<T>(&self, name: &str, first_frame: usize, first_sample: usize, data: Vec<T>)
-    where
-        T: 'static + Copy,
-        T: AsPrimitive<f64>,
-        T: AsPrimitive<u32>,
-    {
-        let entry = self.entries.get(name).unwrap();
-        let path = entry.dirfile_path.join(name);
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)
-            .unwrap();
-
-        let mut writer = std::io::BufWriter::new(file);
-        match &entry.entry_type {
-            EntryType::Raw(raw) => {
-                let offset = raw.spf as i64 * first_frame as i64 + first_sample as i64;
-                match raw.data_type {
-                    RawTypes::Float64 => {
-                        let buf_size = 8;
-                        let mut buf = vec![0; buf_size];
-                        writer.seek_relative(offset * buf_size as i64).unwrap();
-                        for value in data {
-                            let value: f64 = value.as_();
-                            match entry.dirfile_options.endian {
-                                Endian::Big => buf.copy_from_slice(&value.to_be_bytes()),
-                                Endian::Little => buf.copy_from_slice(&value.to_le_bytes()),
-                            }
-                            writer.write_all(&buf).unwrap();
-                        }
-                    }
-                    RawTypes::Uint32 => {
-                        let buf_size = 4;
-                        let mut buf = vec![0; buf_size];
-                        writer.seek_relative(offset * buf_size as i64).unwrap();
-                        for value in data {
-                            let value: u32 = value.as_();
-                            match entry.dirfile_options.endian {
-                                Endian::Big => buf.copy_from_slice(&value.to_be_bytes()),
-                                Endian::Little => buf.copy_from_slice(&value.to_le_bytes()),
-                            }
-                            writer.write_all(&buf).unwrap();
-                        }
-                    }
-                    _ => {
-                        unimplemented!("data type {:?}", raw.data_type)
-                    }
-                }
-                writer.flush().unwrap(); // Flush once after the loop
-            }
-            _ => {
-                panic!("can only put raw data into a file - derived fields are read only")
-            }
-        }
-    }
 }
 
 fn main() {

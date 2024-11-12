@@ -6,7 +6,47 @@ use std::{
 
 use num::cast::AsPrimitive;
 impl crate::Dirfile {
-    pub fn getraw<T>(
+    pub fn getdata<T>(
+        &self,
+        name: &str,
+        first_frame: usize,
+        first_sample: usize,
+        num_frames: usize,
+        num_samples: usize,
+    ) -> Vec<T>
+    where
+        T: 'static + Copy + std::ops::Mul<Output = T> + Add<Output = T> + AsPrimitive<T>,
+        f64: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+        i32: AsPrimitive<T>,
+        u64: AsPrimitive<T>,
+    {
+        let entry = self.entries.get(name).unwrap();
+
+        //get the length of the file
+
+        match &entry.entry_type {
+            crate::EntryType::Raw(raw) => self.getraw(
+                raw,
+                entry.dirfile_path.join(name),
+                entry.dirfile_options.endian,
+                first_frame,
+                first_sample,
+                num_frames,
+                num_samples,
+            ),
+            crate::EntryType::Bit(bit) => {
+                self.getbit(bit, first_frame, first_sample, num_frames, num_samples)
+            }
+            crate::EntryType::Lincom(lincom) => {
+                self.getlincom(lincom, first_frame, first_sample, num_frames, num_samples)
+            }
+            crate::EntryType::Linterp(linterp) => {
+                self.getlinterp(linterp, first_frame, first_sample, num_frames, num_samples)
+            }
+        }
+    }
+    fn getraw<T>(
         &self,
         entry_raw: &crate::EntryRaw,
         path: std::path::PathBuf,
@@ -76,7 +116,7 @@ impl crate::Dirfile {
         }
     }
 
-    pub fn getbit<T>(
+    fn getbit<T>(
         &self,
         entry_bit: &crate::EntryBit,
         first_frame: usize,
@@ -104,7 +144,7 @@ impl crate::Dirfile {
         let data: Vec<T> = inner.into_iter().map(|val| (val & mask).as_()).collect();
         return data;
     }
-    pub fn getlincom<T>(
+    fn getlincom<T>(
         &self,
         entry_lincom: &crate::EntryLincom,
         first_frame: usize,
@@ -147,7 +187,7 @@ impl crate::Dirfile {
                 .expect("just checked its there");
         }
     }
-    pub fn getlinterp<T>(
+    fn getlinterp<T>(
         &self,
         entry_linterp: &crate::EntryLinterp,
         first_frame: usize,
